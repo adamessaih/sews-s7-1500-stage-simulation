@@ -1,0 +1,10 @@
+# Local configuration only
+Python_Bridge/config.json
+Python_Bridge/*.csv
+Python_Bridge/*.xlsx
+Python_Bridge/*.log
+.venv/
+__pycache__/
+*.py[cod]
+*.bak
+*.lock

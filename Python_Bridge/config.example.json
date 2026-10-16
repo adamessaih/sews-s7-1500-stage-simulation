@@ -1,0 +1,25 @@
+{
+  "s7": {
+    "host": "127.0.0.1",
+    "rack": 0,
+    "slot": 1,
+    "db_number": 100,
+    "db_size": 320,
+    "poll_ms": 300
+  },
+  "mqtt": {
+    "host": "127.0.0.1",
+    "port": 1883,
+    "client_id": "s7_1500_demo_bridge",
+    "topic_prefix": "s7_1500_demo"
+  },
+  "data": {
+    "csv_path": "cycles.csv",
+    "xlsx_path": "cycles.xlsx",
+    "default_harness_code": "DEMO-001"
+  },
+  "sql": {
+    "enabled": false,
+    "connection_string": ""
+  }
+}

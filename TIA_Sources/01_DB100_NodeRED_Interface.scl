@@ -1,0 +1,100 @@
+// SEWS S7-1500 / PLCSIM Advanced / Node-RED interface.
+// DB100 must stay non-optimized so Python Snap7 can read/write fixed offsets.
+
+DATA_BLOCK DB100
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 1.0
+VAR
+   // Command bytes written by Python bridge from MQTT.
+   // Cmd[0]  Enable
+   // Cmd[1]  Auto_Mode
+   // Cmd[2]  Enable_DataLog
+   // Cmd[3]  Reset
+   // Cmd[4]  Force_Maintenance_Fault
+   // Cmd[5]  Force_Electrical_Test_NOK / old name Force_Machine_NOK
+   // Cmd[6]  Force_EStop
+   // Cmd[7]  Manual_Start_Pulse / Scan debut
+   // Cmd[8]  Manual_ST2_Done_Pulse
+   // Cmd[9]  Manual_ST3_Done_Pulse
+   // Cmd[10] Manual_Finish_Pulse / Scan fin
+   // Cmd[11] Manual_Takeoff_Pulse
+   // Cmd[12] Manual_Harness_Present
+   // Cmd[13] Manual_Electrical_Test_OK / old name Manual_Machine_OK
+   // Cmd[14] Bridge_Active: 1 = Node-RED/Python drives the PLC demo
+   // Cmd[15] Transfer_To_Electrical_Table_Pulse
+   // Cmd[16] Electrical_Table_Harness_Present
+   // Cmd[17] Electrical_Ports_Plugged / male connectors inserted in female adapters
+   // Cmd[18] Scan_Fin_Clips_Pulse
+   // Cmd[19] Scan_Debut_Test_Electrique_Pulse
+   // Cmd[20] Scan_Fin_Test_Electrique_Pulse
+   // Cmd[21] Etape 1 - Godet_Deposer_Cable (old: Prebloc_Monter_Cable)
+   // Cmd[22] Etape 1 - Godet_Cable_Pris (old: Prebloc_Dans_Chariot)
+   // Cmd[23] Etape 2 - Cable_Vers_Convoyeur
+   // Cmd[24] Etape 2 - Convoyeur_Cablage_OK
+   // Cmd[25] Etape 5 - Audit_Start
+   // Cmd[26] Etape 5 - Audit_OK
+   // Cmd[27] Etape 5 - Audit_NOK
+   // Cmd[28] RIGHT/RH - Audit2_OK visible in DB_SEWS_SIM_PANEL
+   // Cmd[29] RIGHT/RH - Audit3_OK visible in DB_SEWS_SIM_PANEL
+   // Cmd[30] RIGHT/RH - Pack_OK visible in DB_SEWS_SIM_PANEL
+   Cmd        : Array[0..31] of Byte;
+
+   // Status bytes written by PLC for Node-RED/Python.
+   // StatusBool[0]  Harness_Present
+   // StatusBool[1]  Electrical_Test_OK / old name Machine_OK
+   // StatusBool[2]  Maintenance_Alarm
+   // StatusBool[3]  Cycle_Active
+   // StatusBool[4]  Fault_Active
+   // StatusBool[5]  ST2_Working
+   // StatusBool[6]  ST3_Working
+   // StatusBool[7]  Electrical_Testing / old name ST4_Testing
+   // StatusBool[8]  Takeoff_Ready
+   // StatusBool[9]  EStop_Active
+   // StatusBool[10] Electrical_Test_NOK / old name Machine_NOK
+   // StatusBool[11] Trigger_Scan_Debut
+   // StatusBool[12] Trigger_Scan_Fin
+   // StatusBool[13] Clip_Table_Harness_Present
+   // StatusBool[14] Electrical_Table_Harness_Present
+   // StatusBool[15] Electrical_Ports_Plugged
+   // StatusBool[16] Transfer_To_Electrical_Ready
+   // StatusBool[17] Electrical_Current_Passed
+   // StatusBool[18] Trigger_Scan_Clip_Debut
+   // StatusBool[19] Trigger_Scan_Clip_Fin
+   // StatusBool[20] Trigger_Scan_Electrical_Debut
+   // StatusBool[21] Trigger_Scan_Electrical_Fin
+   // StatusBool[22] Godet_Cable_Present / old Prebloc_Cable_Present
+   // StatusBool[23] Godet_Cable_Taken / Prebloc_OK
+   // StatusBool[24] Cable_In_Transfer / old Chariot_Loaded
+   // StatusBool[25] Conveyor_Table_Present
+   // StatusBool[26] Conveyor_OK
+   // StatusBool[27] Audit_Station_Present
+   // StatusBool[28] Audit_OK
+   // StatusBool[29] Audit_NOK
+   // StatusBool[30] Audit_Ready
+   StatusBool : Array[0..31] of Byte;
+
+   // StatusInt[0] Step
+   // StatusInt[1] Status_Code
+   // StatusInt[2] Fault_Code
+   StatusInt  : Array[0..31] of Int;
+
+   // StatusDInt[0] Cycle_Count
+   // StatusDInt[1] Last_Duration_sec
+   // StatusDInt[2] Event_ID
+   // StatusDInt[3] Cycle_Timer_sec
+   // StatusDInt[4] ST2_Timer_sec
+   // StatusDInt[5] ST3_Timer_sec
+   // StatusDInt[6] Electrical_Test_Timer_sec / old name Machine_Test_Timer_sec
+   // StatusDInt[7] Maintenance_Timer_sec
+   StatusDInt : Array[0..31] of DInt;
+
+   // StatusReal[0] Last_Duration_min
+   StatusReal : Array[0..15] of Real;
+END_VAR
+
+BEGIN
+   Cmd[0] := B#16#01;
+   Cmd[1] := B#16#00;
+   Cmd[2] := B#16#01;
+   Cmd[14] := B#16#01;
+END_DATA_BLOCK

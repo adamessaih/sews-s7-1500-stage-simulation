@@ -1,0 +1,164 @@
+// Simple operator panel for TIA/PLCSIM simulation.
+// Open this DB online instead of DB100.
+
+DATA_BLOCK "DB_SEWS_SIM_PANEL"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 1.0
+VAR
+   // ===== A VOIR EN PREMIER DANS TIA =====
+   // Ces variables sont des affichages directs pour la demo.
+   // Ouvre ce DB en ligne + Monitor all: ce sont ces lignes qui doivent changer quand tu cliques dans Node-RED.
+   VIEW_00_S7_Running       : Bool;
+   VIEW_01_NR_Deposer_Godet : Bool;
+   VIEW_02_Godet_Present    : Bool;
+   VIEW_03_Godet_Sensor_ON  : Bool;
+   VIEW_04_NR_Prendre_Godet : Bool;
+   VIEW_05_Godet_Pris       : Bool;
+   VIEW_06_Convoyeur_Present : Bool;
+   VIEW_07_Convoyeur_OK     : Bool;
+   VIEW_08_Table_Clips      : Bool;
+   VIEW_09_Table_Elec       : Bool;
+   VIEW_10_Audit            : Bool;
+   VIEW_11_Fault            : Bool;
+   VIEW_Step                : Int;
+   VIEW_Fault_Code          : Int;
+   VIEW_RH_00_Line_Active   : Bool;
+   VIEW_RH_01_Preblock      : Bool;
+   VIEW_RH_02_Layup         : Bool;
+   VIEW_RH_03_Tape          : Bool;
+   VIEW_RH_04_Clip_Test     : Bool;
+   VIEW_RH_05_Electrical    : Bool;
+   VIEW_RH_06_Audit_1       : Bool;
+   VIEW_RH_07_Audit_2       : Bool;
+   VIEW_RH_08_Audit_3       : Bool;
+   VIEW_RH_09_Pack          : Bool;
+   VIEW_RH_Takt_sec         : DInt := 220;
+
+   // Commandes simples operateur
+   Enable                  : Bool := TRUE;
+   Auto_Mode               : Bool := FALSE;
+   DataLog_Enable          : Bool := TRUE;
+   Reset                   : Bool;
+   Clear_All               : Bool;
+
+   // Nouveaux boutons simples pour le concept godet/alveole.
+   Godet_Deposer_Cable     : Bool;
+   Godet_Cable_Pris        : Bool;
+
+   Prebloc_Monter_Cable    : Bool;
+   Prebloc_Dans_Chariot    : Bool;
+   Chariot_Vers_Convoyeur  : Bool;
+   Convoyeur_Cablage_OK    : Bool;
+   Poser_Harness           : Bool;
+   Scan_Debut              : Bool;
+   ST2_OK                  : Bool;
+   ST3_OK                  : Bool;
+   Scan_Fin_Clips          : Bool;
+   Transfer_Test_Electrique : Bool;
+   Scan_Debut_Test_Elec    : Bool;
+   Poser_Harness_Test_Elec : Bool;
+   Brancher_Connecteurs    : Bool;
+   Test_Electrique_OK      : Bool;
+   Scan_Fin_Test_Elec      : Bool;
+   Audit_Start             : Bool;
+   Audit_OK                : Bool;
+   Audit_NOK               : Bool;
+   Audit2_OK               : Bool;
+   Audit3_OK               : Bool;
+   Pack_OK                 : Bool;
+   Scan_Fin                : Bool;
+   Takeoff                 : Bool;
+
+   // Pannes simples
+   Panne_Capteur           : Bool;
+   Test_Electrique_NOK     : Bool;
+   Emergency_Stop          : Bool;
+
+   // Miroirs Node-RED/Python: regarder ces bits dans TIA quand tu cliques dans le dashboard.
+   NR_Enable               : Bool;
+   NR_Auto_Mode            : Bool;
+   NR_DataLog_Enable       : Bool;
+   NR_Reset                : Bool;
+   NR_Poser_Harness        : Bool;
+   NR_Scan_Debut           : Bool;
+   NR_ST2_OK               : Bool;
+   NR_ST3_OK               : Bool;
+   NR_Scan_Fin_Clips       : Bool;
+   NR_Transfer_Test_Electrique : Bool;
+   NR_Scan_Debut_Test_Elec : Bool;
+   NR_Poser_Harness_Test_Elec : Bool;
+   NR_Brancher_Connecteurs : Bool;
+   NR_Test_Electrique_OK   : Bool;
+   NR_Scan_Fin_Test_Elec   : Bool;
+   NR_Scan_Fin             : Bool;
+   NR_Takeoff              : Bool;
+   NR_Panne_Capteur        : Bool;
+   NR_Test_Electrique_NOK  : Bool;
+   NR_Emergency_Stop       : Bool;
+   NR_Bridge_Active        : Bool;
+   NR_Godet_Deposer_Cable  : Bool;
+   NR_Godet_Cable_Pris     : Bool;
+   NR_Prebloc_Monter_Cable : Bool;
+   NR_Prebloc_Dans_Chariot : Bool;
+   NR_Chariot_Vers_Convoyeur : Bool;
+   NR_Convoyeur_Cablage_OK : Bool;
+   NR_Audit_Start          : Bool;
+   NR_Audit_OK             : Bool;
+   NR_Audit_NOK            : Bool;
+   NR_Audit2_OK            : Bool;
+   NR_Audit3_OK            : Bool;
+   NR_Pack_OK              : Bool;
+
+   // Etats RH ajoutes pour le line plan complet.
+   RH_Audit2_OK_State      : Bool;
+   RH_Audit3_OK_State      : Bool;
+   RH_Pack_OK_State        : Bool;
+
+   // Status simples a regarder
+   S_Harness_Present       : Bool;
+   S_Prebloc_Cable_Present : Bool;
+   S_Prebloc_OK            : Bool;
+   S_Godet_Cable_Present   : Bool;
+   S_Godet_Cable_Taken     : Bool;
+   S_Godet_Sensor_OK       : Bool;
+   S_Chariot_Loaded        : Bool;
+   S_Convoyeur_Present     : Bool;
+   S_Convoyeur_OK          : Bool;
+   S_Harness_Table_Clips   : Bool;
+   S_Transfert_Test_Elec_Ready : Bool;
+   S_Harness_Table_Test_Elec : Bool;
+   S_Connecteurs_Branches  : Bool;
+   S_Cycle_Active          : Bool;
+   S_Scan_Debut_OK         : Bool;
+   S_ST2_En_Cours          : Bool;
+   S_ST3_En_Cours          : Bool;
+   S_Scan_Fin_Clips_OK     : Bool;
+   S_Scan_Debut_Test_Elec_OK : Bool;
+   S_Test_Electrique       : Bool;
+   S_Test_Electrique_OK    : Bool;
+   S_Scan_Fin_Test_Elec_OK : Bool;
+   S_Audit_Ready           : Bool;
+   S_Audit_Present         : Bool;
+   S_Audit_OK              : Bool;
+   S_Audit_NOK             : Bool;
+   S_Scan_Fin_OK           : Bool;
+   S_Takeoff_Ready         : Bool;
+   S_Maintenance_Alarm     : Bool;
+   S_Fault_Active          : Bool;
+
+   Step                    : Int;
+   Fault_Code              : Int;
+   Cycle_Count             : DInt;
+   Cycle_Timer_sec         : DInt;
+   ST2_Timer_sec           : DInt;
+   ST3_Timer_sec           : DInt;
+   Test_Electrique_Timer_sec : DInt;
+   Maintenance_Timer_sec   : DInt;
+   Last_Duration_sec       : DInt;
+END_VAR
+
+BEGIN
+   Enable := TRUE;
+   Auto_Mode := FALSE;
+   DataLog_Enable := TRUE;
+END_DATA_BLOCK

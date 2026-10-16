@@ -1,0 +1,423 @@
+// Call this FC once from OB1/Main.
+// It accepts two control sources:
+// 1) Node-RED/Python via DB100.Cmd[]
+// 2) TIA simulation panel via DB_SEWS_SIM_PANEL with simple boolean names.
+
+FUNCTION "FC_SEWS_NodeRED_DB100" : Void
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 1.1
+BEGIN
+   IF "DB_SEWS_SIM_PANEL".Clear_All OR (DB100.Cmd[3] <> B#16#00) THEN
+      "DB_SEWS_SIM_PANEL".Godet_Deposer_Cable := FALSE;
+      "DB_SEWS_SIM_PANEL".Godet_Cable_Pris := FALSE;
+      "DB_SEWS_SIM_PANEL".Prebloc_Monter_Cable := FALSE;
+      "DB_SEWS_SIM_PANEL".Prebloc_Dans_Chariot := FALSE;
+      "DB_SEWS_SIM_PANEL".Chariot_Vers_Convoyeur := FALSE;
+      "DB_SEWS_SIM_PANEL".Convoyeur_Cablage_OK := FALSE;
+      "DB_SEWS_SIM_PANEL".Poser_Harness := FALSE;
+      "DB_SEWS_SIM_PANEL".Scan_Fin_Clips := FALSE;
+      "DB_SEWS_SIM_PANEL".Transfer_Test_Electrique := FALSE;
+      "DB_SEWS_SIM_PANEL".Scan_Debut_Test_Elec := FALSE;
+      "DB_SEWS_SIM_PANEL".Poser_Harness_Test_Elec := FALSE;
+      "DB_SEWS_SIM_PANEL".Brancher_Connecteurs := FALSE;
+      "DB_SEWS_SIM_PANEL".Test_Electrique_OK := FALSE;
+      "DB_SEWS_SIM_PANEL".Scan_Fin_Test_Elec := FALSE;
+      "DB_SEWS_SIM_PANEL".Audit_Start := FALSE;
+      "DB_SEWS_SIM_PANEL".Audit_OK := FALSE;
+      "DB_SEWS_SIM_PANEL".Audit_NOK := FALSE;
+      "DB_SEWS_SIM_PANEL".Audit2_OK := FALSE;
+      "DB_SEWS_SIM_PANEL".Audit3_OK := FALSE;
+      "DB_SEWS_SIM_PANEL".Pack_OK := FALSE;
+      "DB_SEWS_SIM_PANEL".RH_Audit2_OK_State := FALSE;
+      "DB_SEWS_SIM_PANEL".RH_Audit3_OK_State := FALSE;
+      "DB_SEWS_SIM_PANEL".RH_Pack_OK_State := FALSE;
+      "DB_SEWS_SIM_PANEL".Panne_Capteur := FALSE;
+      "DB_SEWS_SIM_PANEL".Test_Electrique_NOK := FALSE;
+      "DB_SEWS_SIM_PANEL".Emergency_Stop := FALSE;
+   END_IF;
+
+   // Copy command source into simulation FB.
+   "DB_SEWS_S7_1500_Sim".Enable := (DB100.Cmd[0] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Enable;
+   "DB_SEWS_S7_1500_Sim".Auto_Mode := (DB100.Cmd[1] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Auto_Mode;
+   "DB_SEWS_S7_1500_Sim".Enable_DataLog := (DB100.Cmd[2] <> B#16#00) OR "DB_SEWS_SIM_PANEL".DataLog_Enable;
+   "DB_SEWS_S7_1500_Sim".Reset := (DB100.Cmd[3] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Reset OR "DB_SEWS_SIM_PANEL".Clear_All;
+   "DB_SEWS_S7_1500_Sim".Force_Maintenance_Fault := (DB100.Cmd[4] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Panne_Capteur;
+   "DB_SEWS_S7_1500_Sim".Force_Machine_NOK := (DB100.Cmd[5] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Test_Electrique_NOK;
+   "DB_SEWS_S7_1500_Sim".Force_EStop := (DB100.Cmd[6] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Emergency_Stop;
+
+   "DB_SEWS_S7_1500_Sim".Manual_Start_Pulse := (DB100.Cmd[7] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Scan_Debut;
+   "DB_SEWS_S7_1500_Sim".Manual_ST2_Done_Pulse := (DB100.Cmd[8] <> B#16#00) OR "DB_SEWS_SIM_PANEL".ST2_OK;
+   "DB_SEWS_S7_1500_Sim".Manual_ST3_Done_Pulse := (DB100.Cmd[9] <> B#16#00) OR "DB_SEWS_SIM_PANEL".ST3_OK;
+   "DB_SEWS_S7_1500_Sim".Manual_Clip_Finish_Scan_Pulse := (DB100.Cmd[18] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Scan_Fin_Clips;
+   "DB_SEWS_S7_1500_Sim".Manual_Move_To_Electrical_Pulse := (DB100.Cmd[15] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Transfer_Test_Electrique;
+   "DB_SEWS_S7_1500_Sim".Manual_Electrical_Start_Scan_Pulse := (DB100.Cmd[19] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Scan_Debut_Test_Elec;
+   "DB_SEWS_S7_1500_Sim".Manual_Electrical_Harness_Present := (DB100.Cmd[16] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Poser_Harness_Test_Elec;
+   "DB_SEWS_S7_1500_Sim".Manual_Electrical_Ports_Plugged := (DB100.Cmd[17] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Brancher_Connecteurs;
+   "DB_SEWS_S7_1500_Sim".Manual_Electrical_Finish_Scan_Pulse := (DB100.Cmd[20] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Scan_Fin_Test_Elec;
+   "DB_SEWS_S7_1500_Sim".Manual_Finish_Pulse := (DB100.Cmd[10] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Scan_Fin;
+   "DB_SEWS_S7_1500_Sim".Manual_Takeoff_Pulse := (DB100.Cmd[11] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Takeoff;
+   "DB_SEWS_S7_1500_Sim".Manual_Harness_Present := (DB100.Cmd[12] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Poser_Harness;
+   "DB_SEWS_S7_1500_Sim".Manual_Machine_OK := (DB100.Cmd[13] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Test_Electrique_OK;
+   "DB_SEWS_S7_1500_Sim".Manual_Prebloc_Cable_Present := (DB100.Cmd[21] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Godet_Deposer_Cable OR "DB_SEWS_SIM_PANEL".Prebloc_Monter_Cable;
+   "DB_SEWS_S7_1500_Sim".Manual_Prebloc_Done_Pulse := (DB100.Cmd[22] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Godet_Cable_Pris OR "DB_SEWS_SIM_PANEL".Prebloc_Dans_Chariot;
+   "DB_SEWS_S7_1500_Sim".Manual_Move_To_Conveyor_Pulse := (DB100.Cmd[23] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Chariot_Vers_Convoyeur;
+   "DB_SEWS_S7_1500_Sim".Manual_Conveyor_Done_Pulse := (DB100.Cmd[24] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Convoyeur_Cablage_OK;
+   "DB_SEWS_S7_1500_Sim".Manual_Audit_Start_Pulse := (DB100.Cmd[25] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Audit_Start;
+   "DB_SEWS_S7_1500_Sim".Manual_Audit_OK_Pulse := (DB100.Cmd[26] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Audit_OK;
+   "DB_SEWS_S7_1500_Sim".Manual_Audit_NOK_Pulse := (DB100.Cmd[27] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Audit_NOK;
+
+   IF (DB100.Cmd[21] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Godet_Deposer_Cable THEN
+      "DB_SEWS_SIM_PANEL".RH_Audit2_OK_State := FALSE;
+      "DB_SEWS_SIM_PANEL".RH_Audit3_OK_State := FALSE;
+      "DB_SEWS_SIM_PANEL".RH_Pack_OK_State := FALSE;
+   END_IF;
+
+   IF (DB100.Cmd[28] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Audit2_OK THEN
+      "DB_SEWS_SIM_PANEL".RH_Audit2_OK_State := TRUE;
+   END_IF;
+
+   IF (DB100.Cmd[29] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Audit3_OK THEN
+      "DB_SEWS_SIM_PANEL".RH_Audit3_OK_State := TRUE;
+   END_IF;
+
+   IF (DB100.Cmd[30] <> B#16#00) OR "DB_SEWS_SIM_PANEL".Pack_OK THEN
+      "DB_SEWS_SIM_PANEL".RH_Pack_OK_State := TRUE;
+   END_IF;
+
+   "DB_SEWS_S7_1500_Sim"();
+
+   // Auto-reset TIA panel push buttons. Maintained switches stay unchanged.
+   "DB_SEWS_SIM_PANEL".Reset := FALSE;
+   "DB_SEWS_SIM_PANEL".Clear_All := FALSE;
+   "DB_SEWS_SIM_PANEL".Godet_Deposer_Cable := FALSE;
+   "DB_SEWS_SIM_PANEL".Godet_Cable_Pris := FALSE;
+   "DB_SEWS_SIM_PANEL".Prebloc_Monter_Cable := FALSE;
+   "DB_SEWS_SIM_PANEL".Prebloc_Dans_Chariot := FALSE;
+   "DB_SEWS_SIM_PANEL".Chariot_Vers_Convoyeur := FALSE;
+   "DB_SEWS_SIM_PANEL".Convoyeur_Cablage_OK := FALSE;
+   "DB_SEWS_SIM_PANEL".Scan_Debut := FALSE;
+   "DB_SEWS_SIM_PANEL".ST2_OK := FALSE;
+   "DB_SEWS_SIM_PANEL".ST3_OK := FALSE;
+   "DB_SEWS_SIM_PANEL".Scan_Fin_Clips := FALSE;
+   "DB_SEWS_SIM_PANEL".Transfer_Test_Electrique := FALSE;
+   "DB_SEWS_SIM_PANEL".Scan_Debut_Test_Elec := FALSE;
+   "DB_SEWS_SIM_PANEL".Poser_Harness_Test_Elec := FALSE;
+   "DB_SEWS_SIM_PANEL".Brancher_Connecteurs := FALSE;
+   "DB_SEWS_SIM_PANEL".Scan_Fin_Test_Elec := FALSE;
+   "DB_SEWS_SIM_PANEL".Audit_Start := FALSE;
+   "DB_SEWS_SIM_PANEL".Audit_OK := FALSE;
+   "DB_SEWS_SIM_PANEL".Audit_NOK := FALSE;
+   "DB_SEWS_SIM_PANEL".Audit2_OK := FALSE;
+   "DB_SEWS_SIM_PANEL".Audit3_OK := FALSE;
+   "DB_SEWS_SIM_PANEL".Pack_OK := FALSE;
+   "DB_SEWS_SIM_PANEL".Scan_Fin := FALSE;
+   "DB_SEWS_SIM_PANEL".Takeoff := FALSE;
+
+   IF "DB_SEWS_S7_1500_Sim".Harness_Present THEN
+      DB100.StatusBool[0] := B#16#01;
+   ELSE
+      DB100.StatusBool[0] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Machine_OK THEN
+      DB100.StatusBool[1] := B#16#01;
+   ELSE
+      DB100.StatusBool[1] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Maintenance_Alarm THEN
+      DB100.StatusBool[2] := B#16#01;
+   ELSE
+      DB100.StatusBool[2] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Cycle_Active THEN
+      DB100.StatusBool[3] := B#16#01;
+   ELSE
+      DB100.StatusBool[3] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Fault_Active THEN
+      DB100.StatusBool[4] := B#16#01;
+   ELSE
+      DB100.StatusBool[4] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".ST2_Working THEN
+      DB100.StatusBool[5] := B#16#01;
+   ELSE
+      DB100.StatusBool[5] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".ST3_Working THEN
+      DB100.StatusBool[6] := B#16#01;
+   ELSE
+      DB100.StatusBool[6] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".ST4_Testing THEN
+      DB100.StatusBool[7] := B#16#01;
+   ELSE
+      DB100.StatusBool[7] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".ST5_Takeoff_Ready THEN
+      DB100.StatusBool[8] := B#16#01;
+   ELSE
+      DB100.StatusBool[8] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".EStop_Active THEN
+      DB100.StatusBool[9] := B#16#01;
+   ELSE
+      DB100.StatusBool[9] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Machine_NOK THEN
+      DB100.StatusBool[10] := B#16#01;
+   ELSE
+      DB100.StatusBool[10] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Trigger_Scan_Debut THEN
+      DB100.StatusBool[11] := B#16#01;
+   ELSE
+      DB100.StatusBool[11] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Trigger_Scan_Fin THEN
+      DB100.StatusBool[12] := B#16#01;
+   ELSE
+      DB100.StatusBool[12] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Clip_Table_Harness_Present THEN
+      DB100.StatusBool[13] := B#16#01;
+   ELSE
+      DB100.StatusBool[13] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Electrical_Table_Harness_Present THEN
+      DB100.StatusBool[14] := B#16#01;
+   ELSE
+      DB100.StatusBool[14] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Electrical_Ports_Plugged THEN
+      DB100.StatusBool[15] := B#16#01;
+   ELSE
+      DB100.StatusBool[15] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Transfer_To_Electrical_Ready THEN
+      DB100.StatusBool[16] := B#16#01;
+   ELSE
+      DB100.StatusBool[16] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Machine_OK THEN
+      DB100.StatusBool[17] := B#16#01;
+   ELSE
+      DB100.StatusBool[17] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Trigger_Scan_Clip_Debut THEN
+      DB100.StatusBool[18] := B#16#01;
+   ELSE
+      DB100.StatusBool[18] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Trigger_Scan_Clip_Fin THEN
+      DB100.StatusBool[19] := B#16#01;
+   ELSE
+      DB100.StatusBool[19] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Trigger_Scan_Electrical_Debut THEN
+      DB100.StatusBool[20] := B#16#01;
+   ELSE
+      DB100.StatusBool[20] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Trigger_Scan_Electrical_Fin THEN
+      DB100.StatusBool[21] := B#16#01;
+   ELSE
+      DB100.StatusBool[21] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Prebloc_Cable_Present THEN
+      DB100.StatusBool[22] := B#16#01;
+   ELSE
+      DB100.StatusBool[22] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Prebloc_OK THEN
+      DB100.StatusBool[23] := B#16#01;
+   ELSE
+      DB100.StatusBool[23] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Chariot_Loaded THEN
+      DB100.StatusBool[24] := B#16#01;
+   ELSE
+      DB100.StatusBool[24] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Conveyor_Table_Present THEN
+      DB100.StatusBool[25] := B#16#01;
+   ELSE
+      DB100.StatusBool[25] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Conveyor_OK THEN
+      DB100.StatusBool[26] := B#16#01;
+   ELSE
+      DB100.StatusBool[26] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Audit_Station_Present THEN
+      DB100.StatusBool[27] := B#16#01;
+   ELSE
+      DB100.StatusBool[27] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Audit_OK THEN
+      DB100.StatusBool[28] := B#16#01;
+   ELSE
+      DB100.StatusBool[28] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Audit_NOK THEN
+      DB100.StatusBool[29] := B#16#01;
+   ELSE
+      DB100.StatusBool[29] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_S7_1500_Sim".Audit_Ready THEN
+      DB100.StatusBool[30] := B#16#01;
+   ELSE
+      DB100.StatusBool[30] := B#16#00;
+   END_IF;
+
+   IF "DB_SEWS_SIM_PANEL".RH_Pack_OK_State THEN
+      DB100.StatusBool[31] := B#16#01;
+   ELSE
+      DB100.StatusBool[31] := B#16#00;
+   END_IF;
+
+   DB100.StatusInt[0] := "DB_SEWS_S7_1500_Sim".Step;
+   DB100.StatusInt[1] := "DB_SEWS_S7_1500_Sim".Status_Code;
+   DB100.StatusInt[2] := "DB_SEWS_S7_1500_Sim".Fault_Code;
+   DB100.StatusDInt[0] := "DB_SEWS_S7_1500_Sim".Cycle_Count;
+   DB100.StatusDInt[1] := "DB_SEWS_S7_1500_Sim".Last_Duration_sec;
+   DB100.StatusDInt[2] := "DB_SEWS_S7_1500_Sim".Event_ID;
+   DB100.StatusDInt[3] := "DB_SEWS_S7_1500_Sim".Cycle_Timer_sec;
+   DB100.StatusDInt[4] := "DB_SEWS_S7_1500_Sim".ST2_Timer_sec;
+   DB100.StatusDInt[5] := "DB_SEWS_S7_1500_Sim".ST3_Timer_sec;
+   DB100.StatusDInt[6] := "DB_SEWS_S7_1500_Sim".Machine_Test_Timer_sec;
+   DB100.StatusDInt[7] := "DB_SEWS_S7_1500_Sim".Maintenance_Timer_sec;
+   DB100.StatusReal[0] := "DB_SEWS_S7_1500_Sim".Last_Duration_min;
+
+   // Miroirs des commandes envoyees par Node-RED/Python, visibles facilement dans TIA.
+   "DB_SEWS_SIM_PANEL".NR_Enable := DB100.Cmd[0] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Auto_Mode := DB100.Cmd[1] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_DataLog_Enable := DB100.Cmd[2] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Reset := DB100.Cmd[3] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Panne_Capteur := DB100.Cmd[4] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Test_Electrique_NOK := DB100.Cmd[5] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Emergency_Stop := DB100.Cmd[6] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Scan_Debut := DB100.Cmd[7] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_ST2_OK := DB100.Cmd[8] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_ST3_OK := DB100.Cmd[9] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Scan_Fin_Clips := DB100.Cmd[18] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Transfer_Test_Electrique := DB100.Cmd[15] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Scan_Debut_Test_Elec := DB100.Cmd[19] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Poser_Harness_Test_Elec := DB100.Cmd[16] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Brancher_Connecteurs := DB100.Cmd[17] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Scan_Fin_Test_Elec := DB100.Cmd[20] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Scan_Fin := DB100.Cmd[10] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Takeoff := DB100.Cmd[11] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Poser_Harness := DB100.Cmd[12] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Test_Electrique_OK := DB100.Cmd[13] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Bridge_Active := DB100.Cmd[14] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Godet_Deposer_Cable := DB100.Cmd[21] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Godet_Cable_Pris := DB100.Cmd[22] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Prebloc_Monter_Cable := DB100.Cmd[21] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Prebloc_Dans_Chariot := DB100.Cmd[22] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Chariot_Vers_Convoyeur := DB100.Cmd[23] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Convoyeur_Cablage_OK := DB100.Cmd[24] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Audit_Start := DB100.Cmd[25] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Audit_OK := DB100.Cmd[26] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Audit_NOK := DB100.Cmd[27] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Audit2_OK := DB100.Cmd[28] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Audit3_OK := DB100.Cmd[29] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".NR_Pack_OK := DB100.Cmd[30] <> B#16#00;
+
+   // Write simple statuses back to the TIA simulation panel.
+   "DB_SEWS_SIM_PANEL".S_Harness_Present := "DB_SEWS_S7_1500_Sim".Harness_Present;
+   "DB_SEWS_SIM_PANEL".S_Prebloc_Cable_Present := "DB_SEWS_S7_1500_Sim".Prebloc_Cable_Present;
+   "DB_SEWS_SIM_PANEL".S_Prebloc_OK := "DB_SEWS_S7_1500_Sim".Prebloc_OK;
+   "DB_SEWS_SIM_PANEL".S_Godet_Cable_Present := "DB_SEWS_S7_1500_Sim".Godet_Cable_Present;
+   "DB_SEWS_SIM_PANEL".S_Godet_Cable_Taken := "DB_SEWS_S7_1500_Sim".Godet_Cable_Taken;
+   "DB_SEWS_SIM_PANEL".S_Godet_Sensor_OK := "DB_SEWS_S7_1500_Sim".Godet_Sensor_OK;
+   "DB_SEWS_SIM_PANEL".S_Chariot_Loaded := "DB_SEWS_S7_1500_Sim".Chariot_Loaded;
+   "DB_SEWS_SIM_PANEL".S_Convoyeur_Present := "DB_SEWS_S7_1500_Sim".Conveyor_Table_Present;
+   "DB_SEWS_SIM_PANEL".S_Convoyeur_OK := "DB_SEWS_S7_1500_Sim".Conveyor_OK;
+   "DB_SEWS_SIM_PANEL".S_Harness_Table_Clips := "DB_SEWS_S7_1500_Sim".Clip_Table_Harness_Present;
+   "DB_SEWS_SIM_PANEL".S_Transfert_Test_Elec_Ready := "DB_SEWS_S7_1500_Sim".Transfer_To_Electrical_Ready;
+   "DB_SEWS_SIM_PANEL".S_Harness_Table_Test_Elec := "DB_SEWS_S7_1500_Sim".Electrical_Table_Harness_Present;
+   "DB_SEWS_SIM_PANEL".S_Connecteurs_Branches := "DB_SEWS_S7_1500_Sim".Electrical_Ports_Plugged;
+   "DB_SEWS_SIM_PANEL".S_Cycle_Active := "DB_SEWS_S7_1500_Sim".Cycle_Active;
+   "DB_SEWS_SIM_PANEL".S_Scan_Debut_OK := "DB_SEWS_S7_1500_Sim".Step >= 20;
+   "DB_SEWS_SIM_PANEL".S_ST2_En_Cours := "DB_SEWS_S7_1500_Sim".ST2_Working;
+   "DB_SEWS_SIM_PANEL".S_ST3_En_Cours := "DB_SEWS_S7_1500_Sim".ST3_Working;
+   "DB_SEWS_SIM_PANEL".S_Scan_Fin_Clips_OK := "DB_SEWS_S7_1500_Sim".Step >= 35;
+   "DB_SEWS_SIM_PANEL".S_Scan_Debut_Test_Elec_OK := "DB_SEWS_S7_1500_Sim".Step >= 40;
+   "DB_SEWS_SIM_PANEL".S_Test_Electrique := "DB_SEWS_S7_1500_Sim".ST4_Testing;
+   "DB_SEWS_SIM_PANEL".S_Test_Electrique_OK := "DB_SEWS_S7_1500_Sim".Machine_OK;
+   "DB_SEWS_SIM_PANEL".S_Scan_Fin_Test_Elec_OK := "DB_SEWS_S7_1500_Sim".Step >= 50;
+   "DB_SEWS_SIM_PANEL".S_Audit_Ready := "DB_SEWS_S7_1500_Sim".Audit_Ready;
+   "DB_SEWS_SIM_PANEL".S_Audit_Present := "DB_SEWS_S7_1500_Sim".Audit_Station_Present;
+   "DB_SEWS_SIM_PANEL".S_Audit_OK := "DB_SEWS_S7_1500_Sim".Audit_OK;
+   "DB_SEWS_SIM_PANEL".S_Audit_NOK := "DB_SEWS_S7_1500_Sim".Audit_NOK;
+   "DB_SEWS_SIM_PANEL".S_Scan_Fin_OK := "DB_SEWS_S7_1500_Sim".Step >= 50;
+   "DB_SEWS_SIM_PANEL".S_Takeoff_Ready := "DB_SEWS_S7_1500_Sim".ST5_Takeoff_Ready;
+   "DB_SEWS_SIM_PANEL".S_Maintenance_Alarm := "DB_SEWS_S7_1500_Sim".Maintenance_Alarm;
+   "DB_SEWS_SIM_PANEL".S_Fault_Active := "DB_SEWS_S7_1500_Sim".Fault_Active;
+
+   // First lines of DB_SEWS_SIM_PANEL: direct demo view for TIA Monitor all.
+   "DB_SEWS_SIM_PANEL".VIEW_00_S7_Running := DB100.Cmd[0] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".VIEW_01_NR_Deposer_Godet := DB100.Cmd[21] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".VIEW_02_Godet_Present := "DB_SEWS_S7_1500_Sim".Godet_Cable_Present;
+   "DB_SEWS_SIM_PANEL".VIEW_03_Godet_Sensor_ON := "DB_SEWS_S7_1500_Sim".Godet_Sensor_OK;
+   "DB_SEWS_SIM_PANEL".VIEW_04_NR_Prendre_Godet := DB100.Cmd[22] <> B#16#00;
+   "DB_SEWS_SIM_PANEL".VIEW_05_Godet_Pris := "DB_SEWS_S7_1500_Sim".Godet_Cable_Taken;
+   "DB_SEWS_SIM_PANEL".VIEW_06_Convoyeur_Present := "DB_SEWS_S7_1500_Sim".Conveyor_Table_Present;
+   "DB_SEWS_SIM_PANEL".VIEW_07_Convoyeur_OK := "DB_SEWS_S7_1500_Sim".Conveyor_OK;
+   "DB_SEWS_SIM_PANEL".VIEW_08_Table_Clips := "DB_SEWS_S7_1500_Sim".Clip_Table_Harness_Present;
+   "DB_SEWS_SIM_PANEL".VIEW_09_Table_Elec := "DB_SEWS_S7_1500_Sim".Electrical_Table_Harness_Present;
+   "DB_SEWS_SIM_PANEL".VIEW_10_Audit := "DB_SEWS_S7_1500_Sim".Audit_Station_Present OR "DB_SEWS_S7_1500_Sim".Audit_OK OR "DB_SEWS_S7_1500_Sim".Audit_NOK;
+   "DB_SEWS_SIM_PANEL".VIEW_11_Fault := "DB_SEWS_S7_1500_Sim".Fault_Active OR "DB_SEWS_S7_1500_Sim".Maintenance_Alarm;
+   "DB_SEWS_SIM_PANEL".VIEW_Step := "DB_SEWS_S7_1500_Sim".Step;
+   "DB_SEWS_SIM_PANEL".VIEW_Fault_Code := "DB_SEWS_S7_1500_Sim".Fault_Code;
+   "DB_SEWS_SIM_PANEL".VIEW_RH_00_Line_Active := "DB_SEWS_S7_1500_Sim".Cycle_Active OR ("DB_SEWS_S7_1500_Sim".Step > 0);
+   "DB_SEWS_SIM_PANEL".VIEW_RH_01_Preblock := ("DB_SEWS_S7_1500_Sim".Step >= 5) OR "DB_SEWS_S7_1500_Sim".Prebloc_OK;
+   "DB_SEWS_SIM_PANEL".VIEW_RH_02_Layup := ("DB_SEWS_S7_1500_Sim".Step >= 15) OR "DB_SEWS_S7_1500_Sim".Conveyor_OK;
+   "DB_SEWS_SIM_PANEL".VIEW_RH_03_Tape := ("DB_SEWS_S7_1500_Sim".Step >= 20) OR "DB_SEWS_S7_1500_Sim".ST2_Working;
+   "DB_SEWS_SIM_PANEL".VIEW_RH_04_Clip_Test := ("DB_SEWS_S7_1500_Sim".Step >= 34) OR "DB_SEWS_S7_1500_Sim".Transfer_To_Electrical_Ready;
+   "DB_SEWS_SIM_PANEL".VIEW_RH_05_Electrical := ("DB_SEWS_S7_1500_Sim".Step >= 37) OR "DB_SEWS_S7_1500_Sim".Electrical_Table_Harness_Present;
+   "DB_SEWS_SIM_PANEL".VIEW_RH_06_Audit_1 := ("DB_SEWS_S7_1500_Sim".Step >= 60) OR "DB_SEWS_S7_1500_Sim".Audit_OK OR "DB_SEWS_S7_1500_Sim".Audit_NOK;
+   "DB_SEWS_SIM_PANEL".VIEW_RH_07_Audit_2 := "DB_SEWS_SIM_PANEL".RH_Audit2_OK_State;
+   "DB_SEWS_SIM_PANEL".VIEW_RH_08_Audit_3 := "DB_SEWS_SIM_PANEL".RH_Audit3_OK_State;
+   "DB_SEWS_SIM_PANEL".VIEW_RH_09_Pack := "DB_SEWS_SIM_PANEL".RH_Pack_OK_State OR "DB_SEWS_S7_1500_Sim".ST5_Takeoff_Ready;
+
+   "DB_SEWS_SIM_PANEL".Step := "DB_SEWS_S7_1500_Sim".Step;
+   "DB_SEWS_SIM_PANEL".Fault_Code := "DB_SEWS_S7_1500_Sim".Fault_Code;
+   "DB_SEWS_SIM_PANEL".Cycle_Count := "DB_SEWS_S7_1500_Sim".Cycle_Count;
+   "DB_SEWS_SIM_PANEL".Cycle_Timer_sec := "DB_SEWS_S7_1500_Sim".Cycle_Timer_sec;
+   "DB_SEWS_SIM_PANEL".ST2_Timer_sec := "DB_SEWS_S7_1500_Sim".ST2_Timer_sec;
+   "DB_SEWS_SIM_PANEL".ST3_Timer_sec := "DB_SEWS_S7_1500_Sim".ST3_Timer_sec;
+   "DB_SEWS_SIM_PANEL".Test_Electrique_Timer_sec := "DB_SEWS_S7_1500_Sim".Machine_Test_Timer_sec;
+   "DB_SEWS_SIM_PANEL".Maintenance_Timer_sec := "DB_SEWS_S7_1500_Sim".Maintenance_Timer_sec;
+   "DB_SEWS_SIM_PANEL".Last_Duration_sec := "DB_SEWS_S7_1500_Sim".Last_Duration_sec;
+END_FUNCTION

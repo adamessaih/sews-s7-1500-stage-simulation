@@ -1,0 +1,656 @@
+// Simple harness production simulation for S7-1500.
+// Import this source, then call FC_SEWS_NodeRED_DB100 once from OB1.
+
+FUNCTION_BLOCK "FB_SEWS_S7_1500_Sim"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 1.0
+VAR_INPUT
+   Enable                    : Bool := TRUE;
+   Auto_Mode                 : Bool := FALSE;
+   Enable_DataLog            : Bool := TRUE;
+   Reset                     : Bool;
+   Force_Maintenance_Fault   : Bool;
+   Force_Machine_NOK         : Bool;
+   Force_EStop               : Bool;
+
+   Manual_Start_Pulse        : Bool;
+   Manual_ST2_Done_Pulse     : Bool;
+   Manual_ST3_Done_Pulse     : Bool;
+   Manual_Clip_Finish_Scan_Pulse : Bool;
+   Manual_Move_To_Electrical_Pulse : Bool;
+   Manual_Electrical_Start_Scan_Pulse : Bool;
+   Manual_Electrical_Harness_Present : Bool;
+   Manual_Electrical_Ports_Plugged : Bool;
+   Manual_Electrical_Finish_Scan_Pulse : Bool;
+   Manual_Finish_Pulse       : Bool;
+   Manual_Takeoff_Pulse      : Bool;
+   Manual_Harness_Present    : Bool;
+   Manual_Machine_OK         : Bool;
+   Manual_Prebloc_Cable_Present : Bool;
+   Manual_Prebloc_Done_Pulse : Bool;
+   Manual_Move_To_Conveyor_Pulse : Bool;
+   Manual_Conveyor_Done_Pulse : Bool;
+   Manual_Audit_Start_Pulse  : Bool;
+   Manual_Audit_OK_Pulse     : Bool;
+   Manual_Audit_NOK_Pulse    : Bool;
+
+   Maintenance_Alarm_Delay   : Time := T#3S;
+   Auto_Start_Delay          : Time := T#2S;
+   ST2_Work_Time_Setpoint    : Time := T#4S;
+   ST3_Work_Time_Setpoint    : Time := T#4S;
+   Machine_Test_Time         : Time := T#2S;
+   Takeoff_Delay             : Time := T#2S;
+END_VAR
+
+VAR_OUTPUT
+   Step                      : Int;
+   Step_Text                 : String[100];
+   Status_Code               : Int;
+   Last_Command              : String[80];
+
+   Harness_Present           : Bool;
+   Clip_Table_Harness_Present : Bool;
+   Electrical_Table_Harness_Present : Bool;
+   Electrical_Ports_Plugged  : Bool;
+   Transfer_To_Electrical_Ready : Bool;
+   Prebloc_Cable_Present     : Bool;
+   Prebloc_OK                : Bool;
+   Godet_Cable_Present       : Bool;
+   Godet_Cable_Taken         : Bool;
+   Godet_Sensor_OK           : Bool;
+   Chariot_Loaded            : Bool;
+   Conveyor_Table_Present    : Bool;
+   Conveyor_OK               : Bool;
+   Audit_Station_Present     : Bool;
+   Audit_OK                  : Bool;
+   Audit_NOK                 : Bool;
+   Audit_Ready               : Bool;
+   Machine_OK                : Bool;
+   Machine_NOK               : Bool;
+   EStop_Active              : Bool;
+   Trigger_Scan_Debut        : Bool;
+   Trigger_Scan_Fin          : Bool;
+   Trigger_Scan_Clip_Debut   : Bool;
+   Trigger_Scan_Clip_Fin     : Bool;
+   Trigger_Scan_Electrical_Debut : Bool;
+   Trigger_Scan_Electrical_Fin : Bool;
+   Maintenance_Alarm         : Bool;
+   Alarm_To_Maintenance      : Bool;
+   Fault_Active              : Bool;
+   Fault_Code                : Int;
+   Fault_Text                : String[120];
+
+   ST2_Working               : Bool;
+   ST3_Working               : Bool;
+   ST4_Testing               : Bool;
+   ST5_Takeoff_Ready         : Bool;
+
+   Cycle_Count               : DInt;
+   Cycle_Active              : Bool;
+   Cycle_Timer_sec           : DInt;
+   ST2_Timer_sec             : DInt;
+   ST3_Timer_sec             : DInt;
+   Machine_Test_Timer_sec    : DInt;
+   Maintenance_Timer_sec     : DInt;
+   Last_Duration_sec         : DInt;
+   Last_Duration_min         : Real;
+   Event_ID                  : DInt;
+   Event_Text                : String[120];
+END_VAR
+
+VAR
+   Reset_Edge                : R_TRIG;
+   Start_Edge                : R_TRIG;
+   ST2_Edge                  : R_TRIG;
+   ST3_Edge                  : R_TRIG;
+   Clip_Finish_Scan_Edge     : R_TRIG;
+   Move_To_Electrical_Edge   : R_TRIG;
+   Electrical_Start_Scan_Edge : R_TRIG;
+   Electrical_Ports_Edge     : R_TRIG;
+   Electrical_Finish_Scan_Edge : R_TRIG;
+   Finish_Edge               : R_TRIG;
+   Takeoff_Edge              : R_TRIG;
+   Prebloc_Cable_Edge        : R_TRIG;
+   Prebloc_Done_Edge         : R_TRIG;
+   Move_To_Conveyor_Edge     : R_TRIG;
+   Conveyor_Done_Edge        : R_TRIG;
+   Audit_Start_Edge          : R_TRIG;
+   Audit_OK_Edge             : R_TRIG;
+   Audit_NOK_Edge            : R_TRIG;
+
+   Auto_Start_Timer          : TON;
+   ST2_Timer                 : TON;
+   ST3_Timer                 : TON;
+   Machine_Test_TimerBlock   : TON;
+   Takeoff_Timer             : TON;
+   Maintenance_Timer         : TON;
+   Cycle_Runtime_Timer       : TON;
+
+   Previous_Step             : Int;
+   Previous_Alarm            : Bool;
+   New_Event                 : Bool;
+   New_Event_Text            : String[120];
+   ST2_Timer_PT              : Time;
+   ST3_Timer_PT              : Time;
+   Machine_Test_Timer_PT     : Time;
+   Takeoff_Timer_PT          : Time;
+END_VAR
+
+BEGIN
+   #Trigger_Scan_Debut := FALSE;
+   #Trigger_Scan_Fin := FALSE;
+   #Trigger_Scan_Clip_Debut := FALSE;
+   #Trigger_Scan_Clip_Fin := FALSE;
+   #Trigger_Scan_Electrical_Debut := FALSE;
+   #Trigger_Scan_Electrical_Fin := FALSE;
+   #New_Event := FALSE;
+   #New_Event_Text := '';
+
+   #Reset_Edge(CLK := #Reset);
+   #Start_Edge(CLK := #Manual_Start_Pulse);
+   #ST2_Edge(CLK := #Manual_ST2_Done_Pulse);
+   #ST3_Edge(CLK := #Manual_ST3_Done_Pulse);
+   #Clip_Finish_Scan_Edge(CLK := #Manual_Clip_Finish_Scan_Pulse);
+   #Move_To_Electrical_Edge(CLK := #Manual_Move_To_Electrical_Pulse);
+   #Electrical_Start_Scan_Edge(CLK := #Manual_Electrical_Start_Scan_Pulse);
+   #Electrical_Ports_Edge(CLK := #Manual_Electrical_Ports_Plugged);
+   #Electrical_Finish_Scan_Edge(CLK := #Manual_Electrical_Finish_Scan_Pulse);
+   #Finish_Edge(CLK := #Manual_Finish_Pulse);
+   #Takeoff_Edge(CLK := #Manual_Takeoff_Pulse);
+   #Prebloc_Cable_Edge(CLK := #Manual_Prebloc_Cable_Present);
+   #Prebloc_Done_Edge(CLK := #Manual_Prebloc_Done_Pulse);
+   #Move_To_Conveyor_Edge(CLK := #Manual_Move_To_Conveyor_Pulse);
+   #Conveyor_Done_Edge(CLK := #Manual_Conveyor_Done_Pulse);
+   #Audit_Start_Edge(CLK := #Manual_Audit_Start_Pulse);
+   #Audit_OK_Edge(CLK := #Manual_Audit_OK_Pulse);
+   #Audit_NOK_Edge(CLK := #Manual_Audit_NOK_Pulse);
+
+   IF #Auto_Mode THEN
+      #ST2_Timer_PT := #ST2_Work_Time_Setpoint;
+      #ST3_Timer_PT := #ST3_Work_Time_Setpoint;
+      #Machine_Test_Timer_PT := #Machine_Test_Time;
+      #Takeoff_Timer_PT := #Takeoff_Delay;
+   ELSE
+      #ST2_Timer_PT := T#24D;
+      #ST3_Timer_PT := T#24D;
+      #Machine_Test_Timer_PT := T#24D;
+      #Takeoff_Timer_PT := T#24D;
+   END_IF;
+
+   #Auto_Start_Timer(IN := #Enable AND #Auto_Mode AND (#Step = 0), PT := #Auto_Start_Delay);
+   #ST2_Timer(IN := #Enable AND (#Step = 20), PT := #ST2_Timer_PT);
+   #ST3_Timer(IN := #Enable AND (#Step = 30), PT := #ST3_Timer_PT);
+   #Machine_Test_TimerBlock(IN := #Enable AND (#Step = 40), PT := #Machine_Test_Timer_PT);
+   #Takeoff_Timer(IN := #Enable AND (#Step = 50), PT := #Takeoff_Timer_PT);
+   #Maintenance_Timer(IN := #Enable AND #Machine_OK AND NOT #Harness_Present, PT := #Maintenance_Alarm_Delay);
+   #Cycle_Runtime_Timer(IN := #Cycle_Active, PT := T#24D);
+
+   IF #Reset OR NOT #Enable THEN
+      #Step := 0;
+      #Harness_Present := FALSE;
+      #Clip_Table_Harness_Present := FALSE;
+      #Electrical_Table_Harness_Present := FALSE;
+      #Electrical_Ports_Plugged := FALSE;
+      #Transfer_To_Electrical_Ready := FALSE;
+      #Prebloc_Cable_Present := FALSE;
+      #Prebloc_OK := FALSE;
+      #Godet_Cable_Present := FALSE;
+      #Godet_Cable_Taken := FALSE;
+      #Godet_Sensor_OK := FALSE;
+      #Chariot_Loaded := FALSE;
+      #Conveyor_Table_Present := FALSE;
+      #Conveyor_OK := FALSE;
+      #Audit_Station_Present := FALSE;
+      #Audit_OK := FALSE;
+      #Audit_NOK := FALSE;
+      #Audit_Ready := FALSE;
+      #Machine_OK := FALSE;
+      #Machine_NOK := FALSE;
+      #EStop_Active := FALSE;
+      #Maintenance_Alarm := FALSE;
+      #Alarm_To_Maintenance := FALSE;
+      #Fault_Active := FALSE;
+      #Fault_Code := 0;
+      #Fault_Text := 'NO FAULT';
+      #Cycle_Active := FALSE;
+      #ST2_Working := FALSE;
+      #ST3_Working := FALSE;
+      #ST4_Testing := FALSE;
+      #ST5_Takeoff_Ready := FALSE;
+      #Cycle_Timer_sec := 0;
+      #ST2_Timer_sec := 0;
+      #ST3_Timer_sec := 0;
+      #Machine_Test_Timer_sec := 0;
+      #Maintenance_Timer_sec := 0;
+      #Step_Text := '00 READY - attente cable prebloc/godet';
+      #Last_Command := 'RESET';
+   END_IF;
+
+   #EStop_Active := #Force_EStop;
+   #Machine_NOK := #Force_Machine_NOK OR #Force_Maintenance_Fault OR #Force_EStop;
+
+   IF #Enable THEN
+      IF #Force_EStop THEN
+         #Step := 80;
+         #Cycle_Active := FALSE;
+         #Harness_Present := FALSE;
+         #Machine_OK := FALSE;
+         #Machine_NOK := FALSE;
+         #Step_Text := '80 EMERGENCY STOP ACTIVE';
+         #Last_Command := 'FORCE_ESTOP';
+
+      ELSIF #Auto_Mode THEN
+         CASE #Step OF
+            0:
+               #Clip_Table_Harness_Present := FALSE;
+               #Electrical_Table_Harness_Present := FALSE;
+               #Electrical_Ports_Plugged := FALSE;
+               #Transfer_To_Electrical_Ready := FALSE;
+               #Harness_Present := FALSE;
+               #Machine_OK := FALSE;
+               #Machine_NOK := FALSE;
+               #Cycle_Active := FALSE;
+               #Step_Text := '00 READY - auto waiting';
+               IF #Auto_Start_Timer.Q THEN
+                  #Clip_Table_Harness_Present := TRUE;
+                  #Harness_Present := TRUE;
+                  #Trigger_Scan_Debut := TRUE;
+                  #Trigger_Scan_Clip_Debut := TRUE;
+                  #Cycle_Active := TRUE;
+                  #Step := 20;
+                  #Step_Text := '20 SCAN DEBUT OK - ST2 working';
+                  #Last_Command := 'AUTO_DEPOSIT_SCAN_DEBUT';
+               END_IF;
+
+            20:
+               #Clip_Table_Harness_Present := TRUE;
+               #Electrical_Table_Harness_Present := FALSE;
+               #Harness_Present := TRUE;
+               #Machine_OK := FALSE;
+               #Step_Text := '20 ST2 OPERATOR WORKING';
+               IF #ST2_Timer.Q THEN
+                  #Step := 30;
+                  #Step_Text := '30 ST2 DONE - ST3 working';
+                  #Last_Command := 'AUTO_ST2_DONE';
+               END_IF;
+
+            30:
+               #Clip_Table_Harness_Present := TRUE;
+               #Electrical_Table_Harness_Present := FALSE;
+               #Harness_Present := TRUE;
+               #Machine_OK := FALSE;
+               #Step_Text := '30 ST3 OPERATOR WORKING';
+               IF #ST3_Timer.Q THEN
+                  #Transfer_To_Electrical_Ready := FALSE;
+                  #Step := 34;
+                  #Step_Text := '34 CLIPS DONE - waiting final clip scan';
+                  #Last_Command := 'AUTO_ST3_DONE';
+               END_IF;
+
+            34:
+               #Clip_Table_Harness_Present := TRUE;
+               #Electrical_Table_Harness_Present := FALSE;
+               #Harness_Present := TRUE;
+               #Trigger_Scan_Clip_Fin := TRUE;
+               #Transfer_To_Electrical_Ready := TRUE;
+               #Step := 35;
+               #Step_Text := '35 CLIP FINAL SCAN OK - transfer ready';
+               #Last_Command := 'AUTO_SCAN_FIN_CLIPS';
+
+            35:
+               #Clip_Table_Harness_Present := FALSE;
+               #Electrical_Table_Harness_Present := TRUE;
+               #Electrical_Ports_Plugged := FALSE;
+               #Transfer_To_Electrical_Ready := FALSE;
+               #Harness_Present := TRUE;
+               #Step := 37;
+               #Step_Text := '37 ELECTRICAL TABLE - waiting start scan';
+               #Last_Command := 'AUTO_TRANSFER_ELECTRICAL';
+
+            37:
+               #Clip_Table_Harness_Present := FALSE;
+               #Electrical_Table_Harness_Present := TRUE;
+               #Harness_Present := TRUE;
+               #Trigger_Scan_Electrical_Debut := TRUE;
+               #Step := 40;
+               #Step_Text := '40 ELECTRICAL START SCAN OK - plug ports';
+               #Last_Command := 'AUTO_SCAN_DEBUT_TEST_ELEC';
+
+            40:
+               #Clip_Table_Harness_Present := FALSE;
+               #Electrical_Table_Harness_Present := TRUE;
+               #Harness_Present := TRUE;
+               #Electrical_Ports_Plugged := TRUE;
+               #Step_Text := '40 ELECTRICAL TEST - current continuity check';
+               IF #Machine_Test_TimerBlock.Q THEN
+                  IF #Force_Machine_NOK THEN
+                     #Machine_NOK := TRUE;
+                     #Machine_OK := FALSE;
+                     #Step := 91;
+                     #Step_Text := '91 FAULT - electrical test NOK';
+                     #Last_Command := 'AUTO_ELECTRICAL_TEST_NOK';
+                  ELSE
+                     #Machine_OK := TRUE;
+                     IF #Force_Maintenance_Fault THEN
+                        #Harness_Present := FALSE;
+                        #Step := 90;
+                        #Step_Text := '90 FAULT - electrical OK but sensor lost';
+                        #Last_Command := 'AUTO_SENSOR_FAULT';
+                     ELSE
+                        #Trigger_Scan_Fin := TRUE;
+                        #Trigger_Scan_Electrical_Fin := TRUE;
+                        #Cycle_Count := #Cycle_Count + 1;
+                        #Last_Duration_sec := TIME_TO_DINT(#Cycle_Runtime_Timer.ET) / 1000;
+                        #Last_Duration_min := DINT_TO_REAL(#Last_Duration_sec) / 60.0;
+                        #Step := 50;
+                        #Step_Text := '50 SCAN FIN OK - waiting takeoff';
+                        #Last_Command := 'AUTO_SCAN_FIN';
+                     END_IF;
+                  END_IF;
+               END_IF;
+
+            50:
+               #Clip_Table_Harness_Present := FALSE;
+               #Electrical_Table_Harness_Present := TRUE;
+               #Harness_Present := TRUE;
+               #Machine_OK := TRUE;
+               #Step_Text := '50 OK DISPLAYED - waiting takeoff';
+               IF #Takeoff_Timer.Q THEN
+                  #Clip_Table_Harness_Present := FALSE;
+                  #Electrical_Table_Harness_Present := FALSE;
+                  #Electrical_Ports_Plugged := FALSE;
+                  #Harness_Present := FALSE;
+                  #Machine_OK := FALSE;
+                  #Cycle_Active := FALSE;
+                  #Step := 0;
+                  #Step_Text := '00 HARNESS TAKEN OFF - next cycle';
+                  #Last_Command := 'AUTO_TAKEOFF';
+               END_IF;
+
+            ELSE
+               #Step := 0;
+         END_CASE;
+
+      ELSE
+         IF (#Step = 0) AND #Prebloc_Cable_Edge.Q THEN
+            #Prebloc_Cable_Present := TRUE;
+            #Prebloc_OK := FALSE;
+            #Godet_Cable_Present := TRUE;
+            #Godet_Cable_Taken := FALSE;
+            #Godet_Sensor_OK := TRUE;
+            #Chariot_Loaded := FALSE;
+            #Conveyor_Table_Present := FALSE;
+            #Conveyor_OK := FALSE;
+            #Clip_Table_Harness_Present := FALSE;
+            #Electrical_Table_Harness_Present := FALSE;
+            #Audit_Station_Present := FALSE;
+            #Audit_OK := FALSE;
+            #Audit_NOK := FALSE;
+            #Audit_Ready := FALSE;
+            #Machine_OK := FALSE;
+            #Cycle_Active := TRUE;
+            #Step := 5;
+            #Step_Text := '05 ETAPE 1 - godet: cable prepare detecte';
+            #Last_Command := 'GODET_CABLE_DEPOSE';
+         END_IF;
+
+         IF (#Step = 5) AND #Prebloc_Done_Edge.Q THEN
+            #Prebloc_Cable_Present := FALSE;
+            #Prebloc_OK := TRUE;
+            #Godet_Cable_Present := FALSE;
+            #Godet_Cable_Taken := TRUE;
+            #Godet_Sensor_OK := FALSE;
+            #Chariot_Loaded := TRUE;
+            #Step := 10;
+            #Step_Text := '10 ETAPE 1 OK - cable pris du godet';
+            #Last_Command := 'GODET_CABLE_PRIS';
+         END_IF;
+
+         IF (#Step = 10) AND #Move_To_Conveyor_Edge.Q THEN
+            #Chariot_Loaded := FALSE;
+            #Conveyor_Table_Present := TRUE;
+            #Step := 15;
+            #Step_Text := '15 ETAPE 2 - cable pose sur table convoyeur';
+            #Last_Command := 'MOVE_TO_CONVEYOR';
+         END_IF;
+
+         IF (#Step = 15) AND #Conveyor_Done_Edge.Q THEN
+            #Conveyor_OK := TRUE;
+            #Step := 18;
+            #Step_Text := '18 ETAPE 2 OK - pret pour table clips';
+            #Last_Command := 'CONVEYOR_CABLAGE_DONE';
+         END_IF;
+
+         IF ((#Step = 18) OR (#Step = 0)) AND #Manual_Harness_Present THEN
+            #Clip_Table_Harness_Present := TRUE;
+            #Conveyor_Table_Present := FALSE;
+            #Electrical_Table_Harness_Present := FALSE;
+            #Electrical_Ports_Plugged := FALSE;
+            #Transfer_To_Electrical_Ready := FALSE;
+            #Machine_OK := FALSE;
+            IF #Step = 18 THEN
+               #Step_Text := '18 ETAPE 3 - harness pose sur table clips';
+               #Last_Command := 'MOVE_TO_CLIPS_TABLE';
+            END_IF;
+         END_IF;
+
+         #Harness_Present := #Clip_Table_Harness_Present OR #Electrical_Table_Harness_Present;
+         #Machine_OK := #Electrical_Table_Harness_Present AND #Electrical_Ports_Plugged AND NOT #Force_Machine_NOK AND NOT #Force_Maintenance_Fault AND NOT #Force_EStop;
+         #Machine_NOK := #Force_Machine_NOK OR #Force_Maintenance_Fault OR #Force_EStop;
+
+         IF (#Step = 0) THEN
+            #Cycle_Active := FALSE;
+            #Step_Text := '00 READY - attente cable dans godet';
+         END_IF;
+
+         IF #Start_Edge.Q AND #Clip_Table_Harness_Present THEN
+            #Trigger_Scan_Debut := TRUE;
+            #Trigger_Scan_Clip_Debut := TRUE;
+            #Cycle_Active := TRUE;
+            #Step := 20;
+            #Step_Text := '20 MANUAL - scan debut OK, ST2 working';
+            #Last_Command := 'MANUAL_SCAN_DEBUT';
+         END_IF;
+
+         IF #ST2_Edge.Q AND #Cycle_Active THEN
+            #Step := 30;
+            #Step_Text := '30 MANUAL - ST2 done, ST3 working';
+            #Last_Command := 'MANUAL_ST2_DONE';
+         END_IF;
+
+         IF #ST3_Edge.Q AND #Cycle_Active THEN
+            #Step := 34;
+            #Transfer_To_Electrical_Ready := FALSE;
+            #Step_Text := '34 MANUAL - clips done, waiting final clip scan';
+            #Last_Command := 'MANUAL_ST3_DONE';
+         END_IF;
+
+         IF (#Step = 34) AND #Clip_Finish_Scan_Edge.Q THEN
+            #Trigger_Scan_Clip_Fin := TRUE;
+            #Step := 35;
+            #Transfer_To_Electrical_Ready := TRUE;
+            #Step_Text := '35 MANUAL - scan fin clips OK, transfer ready';
+            #Last_Command := 'MANUAL_SCAN_FIN_CLIPS';
+         END_IF;
+
+         IF (#Step = 35) AND (#Move_To_Electrical_Edge.Q OR #Manual_Electrical_Harness_Present) THEN
+            #Clip_Table_Harness_Present := FALSE;
+            #Electrical_Table_Harness_Present := TRUE;
+            #Electrical_Ports_Plugged := FALSE;
+            #Transfer_To_Electrical_Ready := FALSE;
+            #Harness_Present := TRUE;
+            #Step := 37;
+            #Step_Text := '37 MANUAL - harness on electrical table, scan debut test';
+            #Last_Command := 'MANUAL_TRANSFER_TO_ELECTRICAL';
+         END_IF;
+
+         IF (#Step = 37) AND #Electrical_Start_Scan_Edge.Q AND #Electrical_Table_Harness_Present THEN
+            #Trigger_Scan_Electrical_Debut := TRUE;
+            #Step := 40;
+            #Step_Text := '40 MANUAL - scan debut test OK, plug male ports';
+            #Last_Command := 'MANUAL_SCAN_DEBUT_TEST_ELEC';
+         END_IF;
+
+         IF (#Step = 40) AND (#Electrical_Ports_Edge.Q OR #Manual_Electrical_Ports_Plugged) AND #Electrical_Table_Harness_Present THEN
+            #Electrical_Ports_Plugged := TRUE;
+            #Step_Text := '40 MANUAL - ports plugged, machine OK automatic if no fault';
+            #Last_Command := 'MANUAL_ELECTRICAL_PORTS_PLUGGED';
+         END_IF;
+
+         IF (#Electrical_Finish_Scan_Edge.Q OR #Finish_Edge.Q) AND #Machine_OK AND #Electrical_Table_Harness_Present AND #Electrical_Ports_Plugged THEN
+            #Trigger_Scan_Fin := TRUE;
+            #Trigger_Scan_Electrical_Fin := TRUE;
+            #Audit_Ready := TRUE;
+            #Step := 55;
+            #Step_Text := '55 ETAPE 4 OK - attente audit final';
+            #Last_Command := 'MANUAL_SCAN_FIN_TEST_ELEC';
+         END_IF;
+
+         IF (#Step = 55) AND #Audit_Start_Edge.Q THEN
+            #Electrical_Table_Harness_Present := FALSE;
+            #Electrical_Ports_Plugged := FALSE;
+            #Audit_Station_Present := TRUE;
+            #Audit_Ready := FALSE;
+            #Step := 60;
+            #Step_Text := '60 ETAPE 5 - audit en cours';
+            #Last_Command := 'AUDIT_START';
+         END_IF;
+
+         IF (#Step = 60) AND #Audit_OK_Edge.Q THEN
+            #Audit_OK := TRUE;
+            #Audit_NOK := FALSE;
+            #Cycle_Count := #Cycle_Count + 1;
+            #Last_Duration_sec := TIME_TO_DINT(#Cycle_Runtime_Timer.ET) / 1000;
+            #Last_Duration_min := DINT_TO_REAL(#Last_Duration_sec) / 60.0;
+            #Step := 70;
+            #Step_Text := '70 AUDIT OK - cycle termine, attente sortie';
+            #Last_Command := 'AUDIT_OK';
+         END_IF;
+
+         IF (#Step = 60) AND #Audit_NOK_Edge.Q THEN
+            #Audit_OK := FALSE;
+            #Audit_NOK := TRUE;
+            #Machine_NOK := TRUE;
+            #Cycle_Count := #Cycle_Count + 1;
+            #Last_Duration_sec := TIME_TO_DINT(#Cycle_Runtime_Timer.ET) / 1000;
+            #Last_Duration_min := DINT_TO_REAL(#Last_Duration_sec) / 60.0;
+            #Step := 92;
+            #Step_Text := '92 AUDIT NOK - controle qualite refuse';
+            #Last_Command := 'AUDIT_NOK';
+         END_IF;
+
+         IF #Takeoff_Edge.Q AND ((#Step = 70) OR (#Step = 92) OR (#Step = 50)) THEN
+            #Prebloc_Cable_Present := FALSE;
+            #Prebloc_OK := FALSE;
+            #Godet_Cable_Present := FALSE;
+            #Godet_Cable_Taken := FALSE;
+            #Godet_Sensor_OK := FALSE;
+            #Chariot_Loaded := FALSE;
+            #Conveyor_Table_Present := FALSE;
+            #Conveyor_OK := FALSE;
+            #Clip_Table_Harness_Present := FALSE;
+            #Electrical_Table_Harness_Present := FALSE;
+            #Electrical_Ports_Plugged := FALSE;
+            #Transfer_To_Electrical_Ready := FALSE;
+            #Audit_Station_Present := FALSE;
+            #Audit_OK := FALSE;
+            #Audit_NOK := FALSE;
+            #Audit_Ready := FALSE;
+            #Harness_Present := FALSE;
+            #Machine_OK := FALSE;
+            #Machine_NOK := FALSE;
+            #Cycle_Active := FALSE;
+            #Step := 0;
+            #Step_Text := '00 MANUAL - harness removed';
+            #Last_Command := 'MANUAL_TAKEOFF';
+         END_IF;
+
+         IF #Force_Maintenance_Fault THEN
+            #Machine_OK := TRUE;
+            #Harness_Present := FALSE;
+            #Step := 90;
+            #Step_Text := '90 FAULT - sensor absent while OK';
+            #Last_Command := 'MANUAL_SENSOR_FAULT';
+         END_IF;
+
+         IF #Force_Machine_NOK THEN
+            #Machine_OK := FALSE;
+            #Machine_NOK := TRUE;
+            #Step := 91;
+            #Step_Text := '91 FAULT - electrical test NOK';
+            #Last_Command := 'MANUAL_ELECTRICAL_TEST_NOK';
+         END_IF;
+      END_IF;
+   END_IF;
+
+   #Maintenance_Alarm := #Maintenance_Timer.Q OR #Force_EStop OR #Force_Machine_NOK OR #Force_Maintenance_Fault;
+   #Alarm_To_Maintenance := #Maintenance_Alarm;
+
+   IF #Force_EStop THEN
+      #Fault_Active := TRUE;
+      #Fault_Code := 80;
+      #Fault_Text := 'EMERGENCY STOP ACTIVE';
+   ELSIF #Audit_NOK THEN
+      #Fault_Active := TRUE;
+      #Fault_Code := 92;
+      #Fault_Text := 'AUDIT NOK - QUALITY CONTROL FAILED';
+   ELSIF #Force_Machine_NOK OR #Machine_NOK THEN
+      #Fault_Active := TRUE;
+      #Fault_Code := 91;
+      #Fault_Text := 'ELECTRICAL TEST NOK';
+   ELSIF #Maintenance_Timer.Q OR #Force_Maintenance_Fault THEN
+      #Fault_Active := TRUE;
+      #Fault_Code := 90;
+      #Fault_Text := 'ELECTRICAL OK BUT HARNESS SENSOR OFF';
+   ELSE
+      #Fault_Active := FALSE;
+      #Fault_Code := 0;
+      #Fault_Text := 'NO FAULT';
+   END_IF;
+
+   #Status_Code := #Step;
+   #Harness_Present := #Godet_Cable_Present OR #Chariot_Loaded OR #Conveyor_Table_Present OR #Clip_Table_Harness_Present OR #Electrical_Table_Harness_Present OR #Audit_Station_Present;
+   #Transfer_To_Electrical_Ready := (#Step = 35);
+   #ST2_Working := (#Step = 20);
+   #ST3_Working := (#Step = 30);
+   #ST4_Testing := (#Step = 40);
+   #Audit_Ready := (#Step = 55);
+   #ST5_Takeoff_Ready := (#Step = 70) OR (#Step = 92);
+   #Cycle_Timer_sec := TIME_TO_DINT(#Cycle_Runtime_Timer.ET) / 1000;
+   #ST2_Timer_sec := TIME_TO_DINT(#ST2_Timer.ET) / 1000;
+   #ST3_Timer_sec := TIME_TO_DINT(#ST3_Timer.ET) / 1000;
+   #Machine_Test_Timer_sec := TIME_TO_DINT(#Machine_Test_TimerBlock.ET) / 1000;
+   #Maintenance_Timer_sec := TIME_TO_DINT(#Maintenance_Timer.ET) / 1000;
+
+   IF #Step <> #Previous_Step THEN
+      #New_Event := TRUE;
+      #New_Event_Text := #Step_Text;
+   ELSIF #Maintenance_Alarm AND NOT #Previous_Alarm THEN
+      #New_Event := TRUE;
+      #New_Event_Text := #Fault_Text;
+   END_IF;
+
+   IF #New_Event THEN
+      #Event_ID := #Event_ID + 1;
+      #Event_Text := #New_Event_Text;
+   END_IF;
+
+   #Previous_Step := #Step;
+   #Previous_Alarm := #Maintenance_Alarm;
+END_FUNCTION_BLOCK
+
+DATA_BLOCK "DB_SEWS_S7_1500_Sim"
+{ S7_Optimized_Access := 'FALSE' }
+VERSION : 1.0
+"FB_SEWS_S7_1500_Sim"
+BEGIN
+   Enable := TRUE;
+   Auto_Mode := FALSE;
+   Enable_DataLog := TRUE;
+   Maintenance_Alarm_Delay := T#3S;
+   Auto_Start_Delay := T#2S;
+   ST2_Work_Time_Setpoint := T#4S;
+   ST3_Work_Time_Setpoint := T#4S;
+   Machine_Test_Time := T#2S;
+   Takeoff_Delay := T#2S;
+END_DATA_BLOCK
